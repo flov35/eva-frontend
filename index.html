@@ -85,6 +85,15 @@
   .badge.pending{background:rgba(251,191,36,.15);color:var(--warn);}
   .badge.failed{background:rgba(248,113,113,.15);color:var(--err);}
   .badge.published{background:rgba(74,222,128,.15);color:var(--ok);}
+  .badge.approved{background:rgba(74,222,128,.15);color:var(--ok);}
+  .badge.rejected{background:rgba(248,113,113,.15);color:var(--err);}
+  .badge.draft{background:rgba(154,160,172,.15);color:var(--text-dim);}
+
+  .sim-banner{
+    display:flex;align-items:center;gap:10px;background:rgba(251,191,36,.1);
+    border:1px solid rgba(251,191,36,.35);color:var(--warn);border-radius:8px;
+    padding:10px 14px;margin-bottom:16px;font-size:13px;
+  }
 
   .empty{color:var(--text-dim);font-style:italic;padding:12px 0;}
   .muted{color:var(--text-dim);}
@@ -118,6 +127,7 @@
   <button data-view="publications">Publicaciones</button>
   <button data-view="alerts">Alertas</button>
   <button data-view="rules">Reglas</button>
+  <button data-view="ads">Anuncios</button>
 </nav>
 
 <main>
@@ -276,6 +286,46 @@
     </section>
   </div>
 
+  <!-- ===================== ADS (SIMULACIÓN) ===================== -->
+  <div id="view-ads" class="view">
+    <div class="sim-banner">
+      ⚠️ <strong>Modo simulación:</strong> el Ads Agent solo propone campañas para revisar. Nada se lanza de verdad ni gasta presupuesto — no hay conexión a Meta Marketing API.
+    </div>
+
+    <section class="block">
+      <h2>Planificación de anuncios</h2>
+      <div class="row">
+        <button class="primary" id="btn-plan-ads">Correr Ads Agent (proponer campañas)</button>
+        <button id="btn-refresh-ads">Refrescar</button>
+        <select id="ads-status-filter">
+          <option value="">Todos los status</option>
+          <option value="draft">draft</option>
+          <option value="approved">approved</option>
+          <option value="rejected">rejected</option>
+        </select>
+      </div>
+      <table>
+        <thead><tr><th>Pieza</th><th>Plataforma</th><th>Objetivo</th><th>Presupuesto sugerido</th><th>Duración</th><th>Audiencia</th><th>Status</th><th></th></tr></thead>
+        <tbody id="ads-table"><tr><td colspan="8" class="empty">Cargando…</td></tr></tbody>
+      </table>
+    </section>
+
+    <section class="block">
+      <h2>Crear propuesta manual</h2>
+      <div class="row">
+        <input id="ads-piece-id" placeholder="piece_id" style="width:200px;" />
+        <select id="ads-platform"><option value="instagram">instagram</option><option value="tiktok">tiktok</option></select>
+        <select id="ads-objective">
+          <option value="reach">reach</option><option value="engagement">engagement</option>
+          <option value="traffic">traffic</option><option value="conversions">conversions</option>
+        </select>
+        <input id="ads-budget" type="number" placeholder="Presupuesto USD" style="width:140px;" />
+        <input id="ads-duration" type="number" placeholder="Días" style="width:80px;" />
+        <button class="primary" id="btn-create-ad">Crear (draft)</button>
+      </div>
+    </section>
+  </div>
+
 </main>
 
 <div id="toast"></div>
@@ -345,6 +395,7 @@ function loadView(view) {
   if (view === 'publications') loadPublications();
   if (view === 'alerts') loadAlerts();
   if (view === 'rules') loadRules();
+  if (view === 'ads') loadAdCampaigns();
 }
 
 // ---------------------------------------------------------------------------
@@ -695,6 +746,106 @@ async function loadRules() {
 }
 
 document.getElementById('btn-refresh-rules').addEventListener('click', loadRules);
+
+// ---------------------------------------------------------------------------
+// Ads (planificación — SIMULACIÓN, nunca lanza campañas reales)
+// ---------------------------------------------------------------------------
+function fmtAudience(a) {
+  if (!a) return '—';
+  const parts = [];
+  if (a.age_range) parts.push(a.age_range);
+  if (a.locations?.length) parts.push(a.locations.join('/'));
+  if (a.interests?.length) parts.push(a.interests.join(', '));
+  return esc(parts.join(' · ')) || '—';
+}
+
+async function loadAdCampaigns() {
+  const tbody = document.getElementById('ads-table');
+  tbody.innerHTML = '<tr><td colspan="8" class="empty">Cargando…</td></tr>';
+  const status = document.getElementById('ads-status-filter').value;
+  const params = status ? `?status=${encodeURIComponent(status)}` : '';
+  try {
+    const campaigns = await api('/api/ads/campaigns' + params);
+    if (!campaigns.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">Sin propuestas todavía. Corré el Ads Agent o creá una manual.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = campaigns.map((c) => `
+      <tr>
+        <td>${esc(c.piece_id || '—')}</td>
+        <td>${esc(c.platform)}</td>
+        <td>${esc(c.objective)}</td>
+        <td>${c.suggested_budget_usd != null ? 'USD ' + c.suggested_budget_usd : '—'}</td>
+        <td>${c.duration_days != null ? c.duration_days + ' días' : '—'}</td>
+        <td>${fmtAudience(c.target_audience)}</td>
+        <td><span class="badge ${esc(c.status)}">${esc(c.status)}</span></td>
+        <td>
+          ${c.status !== 'approved' ? `<button data-approve="${c.id}">Aprobar</button>` : ''}
+          ${c.status !== 'rejected' ? `<button data-reject="${c.id}">Rechazar</button>` : ''}
+          <button data-delete-ad="${c.id}" class="danger">Eliminar</button>
+        </td>
+      </tr>`).join('');
+
+    tbody.querySelectorAll('[data-approve]').forEach((btn) => btn.addEventListener('click', () => updateAdStatus(btn.dataset.approve, 'approved')));
+    tbody.querySelectorAll('[data-reject]').forEach((btn) => btn.addEventListener('click', () => updateAdStatus(btn.dataset.reject, 'rejected')));
+    tbody.querySelectorAll('[data-delete-ad]').forEach((btn) => btn.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar esta propuesta?')) return;
+      try {
+        await api(`/api/ads/campaigns/${btn.dataset.deleteAd}`, { method: 'DELETE' });
+        loadAdCampaigns();
+      } catch (err) {
+        toast(err.message, 'err');
+      }
+    }));
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Error: ${esc(err.message)}</td></tr>`;
+  }
+}
+
+async function updateAdStatus(id, status) {
+  try {
+    await api(`/api/ads/campaigns/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+    loadAdCampaigns();
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+}
+
+document.getElementById('btn-refresh-ads').addEventListener('click', loadAdCampaigns);
+
+document.getElementById('btn-plan-ads').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  try {
+    const result = await api('/api/ads/plan', { method: 'POST' });
+    if (result.status === 'insufficient_data') {
+      toast(result.message, 'err');
+    } else {
+      toast(`Ads Agent propuso ${result.campaigns.length} campaña(s)`, 'ok');
+    }
+    loadAdCampaigns();
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    e.target.disabled = false;
+  }
+});
+
+document.getElementById('btn-create-ad').addEventListener('click', async () => {
+  const body = {
+    piece_id: document.getElementById('ads-piece-id').value.trim() || undefined,
+    platform: document.getElementById('ads-platform').value,
+    objective: document.getElementById('ads-objective').value,
+    suggested_budget_usd: Number(document.getElementById('ads-budget').value) || undefined,
+    duration_days: Number(document.getElementById('ads-duration').value) || undefined,
+  };
+  try {
+    await api('/api/ads/campaigns', { method: 'POST', body: JSON.stringify(body) });
+    toast('Propuesta creada (draft)', 'ok');
+    loadAdCampaigns();
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Init

@@ -12,6 +12,7 @@ Consume la API del backend [`eva-os`](https://github.com/flov35/eva-os). La URL 
 - **Publicaciones** — historial con métricas (likes, reach, saves, shares, engagement).
 - **Alertas** — alertas pendientes para Flo, con botón de resolver.
 - **Reglas** — reglas activas generadas por el Learning Agent.
+- **Anuncios** — planificación de campañas (Ads Agent). Es **simulación**: propone campañas a partir del contenido con mejor performance y quedan como borrador para aprobar/rechazar; no lanza nada real ni conecta con Meta Marketing API.
 
 ## Desarrollo
 
