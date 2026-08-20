@@ -82,8 +82,14 @@
   .badge.safe{background:rgba(74,222,128,.15);color:var(--ok);}
   .badge.ugc{background:rgba(216,161,255,.15);color:var(--accent);}
   .badge.status{background:rgba(125,211,252,.15);color:var(--accent-2);}
+  .badge.scheduled{background:rgba(251,191,36,.15);color:var(--warn);}
   .badge.pending{background:rgba(251,191,36,.15);color:var(--warn);}
+  .badge.in_progress{background:rgba(125,211,252,.15);color:var(--accent-2);}
+  .badge.delivered{background:rgba(74,222,128,.15);color:var(--ok);}
+  .badge.paid{background:rgba(74,222,128,.15);color:var(--ok);}
   .badge.failed{background:rgba(248,113,113,.15);color:var(--err);}
+  .badge.used{background:rgba(154,160,172,.15);color:var(--text-dim);}
+  .badge.unused{background:rgba(74,222,128,.15);color:var(--ok);}
   .badge.published{background:rgba(74,222,128,.15);color:var(--ok);}
   .badge.approved{background:rgba(74,222,128,.15);color:var(--ok);}
   .badge.rejected{background:rgba(248,113,113,.15);color:var(--err);}
@@ -127,6 +133,8 @@
   <button data-view="publications">Publicaciones</button>
   <button data-view="alerts">Alertas</button>
   <button data-view="rules">Reglas</button>
+  <button data-view="ugc">UGC</button>
+  <button data-view="analytics">Analytics</button>
   <button data-view="ads">Anuncios</button>
 </nav>
 
@@ -205,9 +213,9 @@
       <div class="row">
         <select id="filter-status">
           <option value="">Todos los status</option>
-          <option value="available">available</option>
+          <option value="unused">unused</option>
           <option value="queued">queued</option>
-          <option value="published">published</option>
+          <option value="used">used</option>
         </select>
         <select id="filter-platform">
           <option value="">Todas las plataformas</option>
@@ -280,9 +288,61 @@
       <h2>Reglas activas (Learning Agent)</h2>
       <div class="row"><button id="btn-refresh-rules">Refrescar</button></div>
       <table>
-        <thead><tr><th>Tipo</th><th>Regla</th><th>Confianza</th></tr></thead>
-        <tbody id="rules-table"><tr><td colspan="3" class="empty">Cargando…</td></tr></tbody>
+        <thead><tr><th>Tipo</th><th>Regla</th><th>Evidencia</th><th>Confianza</th><th>Confirmaciones</th><th></th></tr></thead>
+        <tbody id="rules-table"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody>
       </table>
+    </section>
+  </div>
+
+  <!-- ===================== UGC ===================== -->
+  <div id="view-ugc" class="view">
+    <section class="block">
+      <h2>Nuevo brief de marca</h2>
+      <div class="row">
+        <input id="ugc-brief-brand" placeholder="Marca *" style="width:160px;" />
+        <input id="ugc-brief-product" placeholder="Producto" style="width:160px;" />
+        <select id="ugc-brief-industry">
+          <option value="">Industria…</option>
+          <option>Moda</option><option>Belleza</option><option>Tecnología</option><option>Viajes</option><option>Lifestyle</option>
+        </select>
+        <input id="ugc-brief-deadline" type="date" />
+      </div>
+      <div class="row">
+        <textarea id="ugc-brief-text" placeholder="Brief de la marca (qué quieren, tono, mensajes clave...)" style="flex:1;min-width:260px;"></textarea>
+        <textarea id="ugc-brief-deliverables" placeholder="Entregables (ej: 1 Reel + 2 Stories)" style="flex:1;min-width:260px;"></textarea>
+      </div>
+      <div class="row"><button class="primary" id="btn-create-brief">Crear brief</button></div>
+      <div id="ugc-suggested-angles" class="muted" style="font-size:13px;"></div>
+    </section>
+
+    <section class="block">
+      <h2>Briefs</h2>
+      <div class="row">
+        <button id="btn-refresh-ugc">Refrescar</button>
+        <select id="ugc-status-filter">
+          <option value="">Todos los status</option>
+          <option value="pending">pending</option>
+          <option value="in_progress">in_progress</option>
+          <option value="delivered">delivered</option>
+          <option value="paid">paid</option>
+        </select>
+      </div>
+      <table>
+        <thead><tr><th>Marca</th><th>Producto</th><th>Industria</th><th>Deadline</th><th>Status</th><th></th></tr></thead>
+        <tbody id="ugc-table"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody>
+      </table>
+    </section>
+  </div>
+
+  <!-- ===================== ANALYTICS ===================== -->
+  <div id="view-analytics" class="view">
+    <section class="block">
+      <h2>Reporte semanal (Analytics Agent)</h2>
+      <div class="row">
+        <button class="primary" id="btn-generate-report">Generar reporte nuevo</button>
+        <button id="btn-refresh-report">Refrescar</button>
+      </div>
+      <div id="analytics-content" class="muted">Cargando…</div>
     </section>
   </div>
 
@@ -395,6 +455,8 @@ function loadView(view) {
   if (view === 'publications') loadPublications();
   if (view === 'alerts') loadAlerts();
   if (view === 'rules') loadRules();
+  if (view === 'ugc') loadUgcBriefs();
+  if (view === 'analytics') loadAnalytics();
   if (view === 'ads') loadAdCampaigns();
 }
 
@@ -568,7 +630,7 @@ async function loadPieces() {
         <td><span class="badge status">${esc(p.status)}</span></td>
         <td>${p.nsfw_level ? `<span class="badge safe">${esc(p.nsfw_level)}</span>` : '<span class="muted">sin clasificar</span>'}</td>
         <td>
-          <button data-caption="${p.id}">Caption</button>
+          <button data-caption="${p.id}" data-platform="${esc((p.platforms || [])[0] || 'instagram')}">Caption</button>
           <button data-delete="${p.id}" class="danger">Eliminar</button>
         </td>
       </tr>`).join('');
@@ -577,7 +639,7 @@ async function loadPieces() {
       btn.addEventListener('click', async () => {
         btn.disabled = true;
         try {
-          const captions = await api('/api/generate-caption', { method: 'POST', body: JSON.stringify({ piece_id: btn.dataset.caption }) });
+          const captions = await api('/api/generate-caption', { method: 'POST', body: JSON.stringify({ piece_id: btn.dataset.caption, platform: btn.dataset.platform }) });
           alert(JSON.stringify(captions, null, 2));
         } catch (err) {
           toast(err.message, 'err');
@@ -727,25 +789,174 @@ document.getElementById('btn-refresh-alerts').addEventListener('click', loadAler
 // ---------------------------------------------------------------------------
 async function loadRules() {
   const tbody = document.getElementById('rules-table');
-  tbody.innerHTML = '<tr><td colspan="3" class="empty">Cargando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="6" class="empty">Cargando…</td></tr>';
   try {
     const rules = await api('/api/rules');
     if (!rules.length) {
-      tbody.innerHTML = '<tr><td colspan="3" class="empty">Sin reglas activas todavía.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">Sin reglas activas todavía.</td></tr>';
       return;
     }
     tbody.innerHTML = rules.map((r) => `
       <tr>
-        <td>${esc(r.type)}</td>
+        <td><span class="badge status">${esc(r.type)}</span></td>
         <td>${esc(r.text)}</td>
-        <td>${r.confidence != null ? Math.round(r.confidence * 100) + '%' : '—'}</td>
+        <td class="muted">${esc(r.evidence || '')}</td>
+        <td>${r.confidence != null ? r.confidence + '%' : '—'}</td>
+        <td>${r.confirmations ?? 1}</td>
+        <td><button data-deactivate="${r.id}" class="danger">Desactivar</button></td>
       </tr>`).join('');
+
+    tbody.querySelectorAll('[data-deactivate]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await api(`/api/rules/${btn.dataset.deactivate}/deactivate`, { method: 'PATCH' });
+          loadRules();
+        } catch (err) {
+          toast(err.message, 'err');
+        }
+      });
+    });
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="3" class="empty">Error: ${esc(err.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${esc(err.message)}</td></tr>`;
   }
 }
 
 document.getElementById('btn-refresh-rules').addEventListener('click', loadRules);
+
+// ---------------------------------------------------------------------------
+// UGC (briefs de marcas)
+// ---------------------------------------------------------------------------
+async function loadUgcBriefs() {
+  const tbody = document.getElementById('ugc-table');
+  tbody.innerHTML = '<tr><td colspan="6" class="empty">Cargando…</td></tr>';
+  const status = document.getElementById('ugc-status-filter').value;
+  const params = status ? `?status=${encodeURIComponent(status)}` : '';
+  try {
+    const briefs = await api('/api/ugc/briefs' + params);
+    if (!briefs.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">Sin briefs todavía.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = briefs.map((b) => `
+      <tr>
+        <td>${esc(b.brand_name)}</td>
+        <td>${esc(b.product_name || '—')}</td>
+        <td>${esc(b.industry || '—')}</td>
+        <td>${b.deadline ? fmtDate(b.deadline) : '—'}</td>
+        <td><span class="badge ${esc(b.status)}">${esc(b.status)}</span></td>
+        <td>
+          <select data-status-select="${b.id}">
+            ${['pending', 'in_progress', 'delivered', 'paid'].map((s) => `<option value="${s}" ${s === b.status ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+          <button data-performance="${b.id}">Performance</button>
+        </td>
+      </tr>`).join('');
+
+    tbody.querySelectorAll('[data-status-select]').forEach((sel) => {
+      sel.addEventListener('change', async () => {
+        try {
+          await api(`/api/ugc/briefs/${sel.dataset.statusSelect}`, { method: 'PATCH', body: JSON.stringify({ status: sel.value }) });
+          loadUgcBriefs();
+        } catch (err) {
+          toast(err.message, 'err');
+        }
+      });
+    });
+
+    tbody.querySelectorAll('[data-performance]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          const report = await api(`/api/ugc/briefs/${btn.dataset.performance}/performance`);
+          alert(JSON.stringify(report, null, 2));
+        } catch (err) {
+          toast(err.message, 'err');
+        }
+      });
+    });
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${esc(err.message)}</td></tr>`;
+  }
+}
+
+document.getElementById('btn-refresh-ugc').addEventListener('click', loadUgcBriefs);
+
+document.getElementById('btn-create-brief').addEventListener('click', async () => {
+  const brand_name = document.getElementById('ugc-brief-brand').value.trim();
+  if (!brand_name) return toast('La marca es obligatoria', 'err');
+
+  const body = {
+    brand_name,
+    product_name: document.getElementById('ugc-brief-product').value.trim() || undefined,
+    industry: document.getElementById('ugc-brief-industry').value || undefined,
+    deadline: document.getElementById('ugc-brief-deadline').value || undefined,
+    brief: document.getElementById('ugc-brief-text').value.trim() || undefined,
+    deliverables: document.getElementById('ugc-brief-deliverables').value.trim() || undefined,
+  };
+
+  const btn = document.getElementById('btn-create-brief');
+  btn.disabled = true;
+  try {
+    const result = await api('/api/ugc/briefs', { method: 'POST', body: JSON.stringify(body) });
+    toast('Brief creado', 'ok');
+    const anglesBox = document.getElementById('ugc-suggested-angles');
+    if (result.suggested_angles?.length) {
+      anglesBox.innerHTML = '<h3>Ángulos sugeridos (UGC Agent)</h3>' + result.suggested_angles
+        .map((a) => `<div style="margin-bottom:8px;"><strong>${esc(a.format || '')}</strong> — ${esc(a.idea || '')}<br><span class="muted">${esc(a.why_it_fits || '')}</span></div>`)
+        .join('');
+    }
+    ['ugc-brief-brand', 'ugc-brief-product', 'ugc-brief-text', 'ugc-brief-deliverables'].forEach((id) => (document.getElementById(id).value = ''));
+    loadUgcBriefs();
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Analytics (reporte semanal)
+// ---------------------------------------------------------------------------
+async function loadAnalytics() {
+  const box = document.getElementById('analytics-content');
+  box.textContent = 'Cargando…';
+  try {
+    const report = await api('/api/analytics/weekly-report');
+    if (!report) {
+      box.innerHTML = '<span class="empty">Todavía no se generó ningún reporte semanal.</span>';
+      return;
+    }
+    const d = report.data || {};
+    box.innerHTML = `
+      <p><strong>Semana del:</strong> ${esc(report.week_start)}</p>
+      <p><strong>Publicaciones:</strong> ${d.publications_count ?? '—'}</p>
+      <p><strong>Resumen:</strong> ${esc(d.summary || '—')}</p>
+      <p><strong>Vs. industria:</strong> ${esc(d.vs_industry || '—')}</p>
+      ${d.recommendations?.length ? `<p><strong>Recomendaciones:</strong></p><ul>${d.recommendations.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
+      ${d.top3?.length ? `<p><strong>Top 3:</strong> ${d.top3.map((p) => `${esc(p.platform)} (${p.engagement_rate})`).join(', ')}</p>` : ''}
+      ${d.bottom3?.length ? `<p><strong>Bottom 3:</strong> ${d.bottom3.map((p) => `${esc(p.platform)} (${p.engagement_rate})`).join(', ')}</p>` : ''}
+    `;
+  } catch (err) {
+    box.innerHTML = `<span class="empty">Error: ${esc(err.message)}</span>`;
+  }
+}
+
+document.getElementById('btn-refresh-report').addEventListener('click', loadAnalytics);
+document.getElementById('btn-generate-report').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  try {
+    const result = await api('/api/analytics/generate-report', { method: 'POST' });
+    if (result.status === 'insufficient_data') {
+      toast(result.message, 'err');
+    } else {
+      toast('Reporte generado', 'ok');
+    }
+    loadAnalytics();
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    e.target.disabled = false;
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Ads (planificación — SIMULACIÓN, nunca lanza campañas reales)
